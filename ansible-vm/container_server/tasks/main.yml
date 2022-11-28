@@ -1,0 +1,9 @@
+---
+# tasks file for container_server
+  - name: Install podman
+    dnf:
+        name: '{{ item }}'
+        state: present
+        update_cache: True
+    with_items:
+      - podman

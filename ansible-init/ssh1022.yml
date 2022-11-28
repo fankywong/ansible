@@ -1,0 +1,36 @@
+---
+- hosts: mimosa
+  remote_user: wong
+  become: yes
+  vars:
+    #ansible_port: '1022'
+
+  tasks:
+    - name: Configure sshd for security
+      lineinfile:
+        path: "/etc/ssh/sshd_config"
+        regex: "^(#)?{{item.key}}"
+        line: "{{item.key}} {{item.value}}"
+        state: present
+      loop:
+        - { key: "Port", value: "1022" }
+    - name: remove port 22 in iptables 
+      ansible.builtin.iptables:
+        chain: INPUT
+        protocol: tcp
+        destination_port: 22
+        ctstate: NEW
+        syn: match
+        jump: SSH
+        state: absent
+    - name: save iptables
+      community.general.iptables_state:
+        ip_version: ipv4
+        table: filter
+        state: saved
+        path: /etc/sysconfig/iptables
+    - name: restart sshd
+      ansible.builtin.systemd:
+        name: sshd
+        state: restarted
+

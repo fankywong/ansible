@@ -1,0 +1,22 @@
+sudo iptables -F
+sudo iptables -X
+sudo iptables -Z
+sudo iptables -P INPUT DROP
+sudo iptables -P FORWARD DROP
+sudo iptables -P OUTPUT DROP
+sudo iptables -N ALANZ
+sudo iptables -N SSH
+sudo iptables -A INPUT -i lo -j ACCEPT
+sudo iptables -A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+sudo iptables -A INPUT -m conntrack --ctstate INVALID -j DROP
+sudo iptables -A INPUT -p icmp -j ALANZ
+sudo iptables -A INPUT -p tcp -m tcp --dport 1022 --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j SSH
+sudo iptables -A INPUT -p tcp -m tcp --dport 22 --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j SSH
+sudo iptables -A INPUT -j REJECT --reject-with icmp-host-prohibited
+sudo iptables -A FORWARD -m conntrack --ctstate INVALID -j DROP
+sudo iptables -A FORWARD -j REJECT --reject-with icmp-host-prohibited
+sudo iptables -A OUTPUT -m conntrack --ctstate INVALID -j DROP
+sudo iptables -A OUTPUT -j ACCEPT
+sudo iptables -A ALANZ -s 10.88.0.0/16 -j ACCEPT
+sudo iptables -A SSH -j ALANZ
+sudo service iptables save

@@ -1,0 +1,74 @@
+---
+# tasks file for cockpit
+  - name: Install cockpit
+    dnf:
+      name: '{{ item }}'
+      state: present
+      update_cache: True
+    with_items:
+      - cockpit
+  - name: Check if podman exist
+    package:
+      name: podman
+      state: present
+    check_mode: true
+    register: mypackage_check
+  - name: Install cockpit-podman when podman exist
+    dnf:
+      name: cockpit-podman
+      state: present
+      update_cache: True
+    when: not mypackage_check.changed 
+
+  - name: check if cockpit chain exist
+    iptables:
+      chain: COCKPIT
+      chain_management: true
+      state: present
+
+  - name: Check if port 9090 already open
+    ansible.builtin.iptables:
+      chain: INPUT
+      protocol: tcp
+      destination_port: 9090
+      ctstate: NEW
+      syn: match
+      jump: COCKPIT
+      state: present
+    check_mode: true
+    register: ipt_check
+
+  - name: Make INPUT chain open end, if port 9090 not already open
+    ansible.builtin.iptables:
+      chain: INPUT
+      jump: REJECT
+      reject_with: icmp-host-prohibited
+      state: absent
+    when: ipt_check.changed
+
+  - name: Open port 9090, if port 9090 not already open
+    ansible.builtin.iptables:
+      chain: INPUT
+      protocol: tcp
+      destination_port: 9090
+      ctstate: NEW
+      syn: match
+      jump: COCKPIT
+      state: present
+    when: ipt_check.changed
+
+
+  - name: make INPUT chain close end, if port 9090 not already open
+    ansible.builtin.iptables:
+      chain: INPUT
+      jump: REJECT
+      reject_with: icmp-host-prohibited
+      state: present
+    when: ipt_check.changed
+
+  - name: COCKPIT chain accept lan
+    ansible.builtin.iptables:
+      chain: COCKPIT
+      jump: ALANZ
+      action: replace
+      state: present 

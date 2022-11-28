@@ -1,0 +1,7 @@
+---
+- hosts: mimosa
+  remote_user: wong
+  become: yes  
+  roles:
+    - container_server
+    - cockpit

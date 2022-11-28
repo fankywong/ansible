@@ -1,0 +1,111 @@
+--- 
+- hosts: mimosa
+  remote_user: wong
+  become: yes
+  vars:
+    #ansible_port: '22' #specify in hosts
+    myhostname: 'mimosa'
+
+  tasks:
+    - name: Set a hostname
+      ansible.builtin.hostname:
+        name: '{{ myhostname }}'
+    - name: Install all the packages
+      dnf:
+        name: '{{ item }}'
+        state: present
+        update_cache: True
+      with_items:
+        - iptables-services
+        - rsyslog
+        - policycoreutils-python-utils
+        - net-tools
+        - wget
+        - s-nail #send mail utilities for RH9
+    - name: start rsyslog
+      ansible.builtin.systemd:
+        name: rsyslog
+        enabled: yes
+        state: started
+    - name: Disable processes
+      ansible.builtin.systemd:
+        name: '{{ item }}'
+        enabled: no
+        state: stopped
+      with_items:
+        - kdump
+    - name: Disable firewalld
+      ansible.builtin.systemd:
+        name: firewalld
+        enabled: no
+        state: stopped
+        masked: yes 
+    - name: Enable iptables 
+      ansible.builtin.systemd:
+        name: '{{ item }}'
+        enabled: yes
+        state: started
+      with_items:
+        - iptables
+        - ip6tables
+    - name: Disable sleep
+      ansible.builtin.systemd:
+        name: '{{ item }}'
+        masked: yes
+        state: stopped
+      with_items:
+        - sleep.target
+        - suspend.target
+        - hibernate.target
+    - name: Configure sshd for security
+      lineinfile:
+        path: "/etc/ssh/sshd_config"
+        regex: "^(#)?{{item.key}}"
+        line: "{{item.key}} {{item.value}}"
+        state: present
+      loop:
+        - { key: "PermitRootLogin", value: "no" }
+        - { key: "PasswordAuthentication", value: "no" } 
+        - { key: "PubkeyAuthentication", value: "yes" } 
+        - { key: "PermitEmptyPasswords", value: "no" } 
+        - { key: "AllowAgentForwarding", value: "no" } 
+        - { key: "AllowTcpForwarding", value: "no" } 
+        - { key: "X11Forwarding", value: "no" } 
+        - { key: "PermitTunnel", value: "no" } 
+        - { key: "Compression", value: "no" } 
+    - name: Add sshd config line
+      lineinfile:
+        path: "/etc/ssh/sshd_config"
+        regex: "^(#)?{{ item }}"
+        line: '{{ item }}'
+        state: present
+      loop:
+        - "AllowUsers fanky"
+        - "Match Address 10.88.0.0/16"
+        - "  AllowUsers fanky wong root"
+        - "  PermitRootLogin prohibit-password"
+        - "  PasswordAuthentication no"
+      #notify:
+      #  - restart sshd
+    - name: restart sshd
+      ansible.builtin.systemd:
+        name: sshd
+        state: restarted
+
+    - name: Allow sshd to use 1022
+      community.general.seport:
+        ports: 1022
+        proto: tcp
+        setype: ssh_port_t
+        state: present
+    - name: Send iptables config
+      ansible.builtin.copy:
+        src: ipt
+        dest: /home/wong/ipt
+        owner: wong
+        group: wong
+        mode: '0600' 
+    - name: Config iptables
+      shell: "{{item}}"
+      with_items:
+        - 'source /home/wong/ipt' 
